@@ -4,9 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-def level_plot(level_datas):
+def level_plot(level_data):
+    print(level_data.head())
+    level_data_per_day = []
+    unique_dates = level_data['local_day'].unique()
+    for date in unique_dates:
+      # 각 날짜별 데이터 추출
+      date_data = level_data[level_data['local_day'] == date].copy()
+      # 리스트에 추가
+      level_data_per_day.append(date_data)
+
     plt.figure(figsize=(20, 6))
-    for level_data in level_datas:
+
+    for level_data in level_data_per_day:
         # 시간을 기준으로 데이터 정렬
         level_data.sort_values(by='local_time', inplace=True)
         
@@ -37,15 +47,17 @@ def data_load(data_dir):
         # local_time을 날짜(local_day)와 시간(local_time)으로 나누기
         level_data['local_day'] = pd.to_datetime(level_data['local_time']).dt.date
         level_data['hour'] = pd.to_datetime(level_data['local_time']).dt.hour
+        level_data['minute'] = pd.to_datetime(level_data['local_time']).dt.minute
+        level_data['hour_minute'] = level_data['hour'].map('{:02}'.format) + ':' + level_data['minute'].map('{:02}'.format)
         level_data['local_time'] = pd.to_datetime(level_data['local_time']).dt.strftime('%H:%M')
         level_datas.append(level_data)
     
-    return level_datas
+    return pd.concat(level_datas, ignore_index=True)
 
 def statistics_per_day(level_datas):
     for level_data in level_datas:
         # 시간별 통계치 계산
-        grouped = level_data.groupby('hour')['sample_value'].agg(['min', 'max', 'mean', 'median'])
+        grouped = level_data.groupby('hour_minute')['sample_value'].agg(['min', 'max', 'mean', 'median'])
         print(f"Statistics for {level_data['local_day'].iloc[0]}:")
         print(grouped)
         file_name = f"./result/statistics_per_day_{level_data['local_day'].iloc[0]}.csv"
@@ -53,14 +65,14 @@ def statistics_per_day(level_datas):
         print()
 
 def statistics_all_data_per_hour(level_datas):
-  grouped_stats = all_data.groupby('hour')['sample_value'].agg(['min', 'max', 'mean', 'median'])
+  grouped_stats = level_datas.groupby('hour_minute')['sample_value'].agg(['min', 'max', 'mean', 'median'])
   print("Hourly Statistics Across All Dates:")
   print(grouped_stats)
-  grouped_stats.to_csv('./result/statistics_all_day.csv',index=False)
+  grouped_stats.to_csv('./result/statistics_all_day.csv',index=True)
 
-def boxplot_all_data_per_hour(all_data):
+def boxplot_all_data_per_hour(level_datas):
   plt.figure(figsize=(12, 8))
-  all_data.boxplot(column='sample_value', by='hour', grid=True)
+  level_datas.boxplot(column='sample_value', by='hour_minute', grid=True)
   plt.xlabel('Hour of Day')
   plt.ylabel('Sample Value')
   plt.title('Box Plot of Sample Value by Hour of Day')
@@ -70,22 +82,23 @@ def boxplot_all_data_per_hour(all_data):
 def concat_level_data(level_datas):
   return pd.concat(level_datas, ignore_index=True)
 
-def find_outliers(all_data):
-  grouped_stats = all_data.groupby('hour')['sample_value'].describe()
+def find_outliers(level_datas):
+  grouped_stats = level_datas.groupby('hour_minute')['sample_value'].describe()
   grouped_stats['IQR'] = grouped_stats['75%'] - grouped_stats['25%']
   grouped_stats['lower_bound'] = grouped_stats['25%'] - 1.5 * grouped_stats['IQR']
   grouped_stats['upper_bound'] = grouped_stats['75%'] + 1.5 * grouped_stats['IQR']
+  grouped_stats.to_csv('./result/range_of_outliers.csv',index=True)
 
   # 이상치 찾기
   outliers = pd.DataFrame()
-  for hour, data in all_data.groupby('hour'):
-    lower_bound = grouped_stats.loc[hour, 'lower_bound']
-    upper_bound = grouped_stats.loc[hour, 'upper_bound']
+  for hour_minute, data in level_datas.groupby('hour_minute'):
+    lower_bound = grouped_stats.loc[hour_minute, 'lower_bound']
+    upper_bound = grouped_stats.loc[hour_minute, 'upper_bound']
         
     hour_outliers = data[(data['sample_value'] < lower_bound) | (data['sample_value'] > upper_bound)]
-    hour_outliers.loc[:, 'hour'] = hour
+    hour_outliers.loc[:, 'hour_minute'] = hour_minute
     outliers = pd.concat([outliers, hour_outliers])
-    outliers.to_csv('./result/outliers.csv',index=True)
+    outliers.to_csv('./result/outliers.csv',index=False)
   return outliers
 
 # 데이터 로드
@@ -95,16 +108,13 @@ level_datas = data_load(data_dir)
 # 그래프 그리기
 level_plot(level_datas)
 
-# 모든 일자 별 데이터
-all_data = concat_level_data(level_datas)
-
 # 통계치 출력
-statistics_per_day(level_datas)
-statistics_all_data_per_hour(all_data)
-boxplot_all_data_per_hour(all_data)
+# statistics_per_day(level_datas)
+statistics_all_data_per_hour(level_datas)
+boxplot_all_data_per_hour(level_datas)
 
 #이상치 찾기
-outliers = find_outliers(all_data)
+outliers = find_outliers(level_datas)
 print("Outliers")
 print(outliers)
 
