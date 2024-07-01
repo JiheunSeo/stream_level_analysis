@@ -14,7 +14,7 @@ def level_plot(level_data):
       # 리스트에 추가
       level_data_per_day.append(date_data)
 
-    plt.figure(figsize=(20, 6))
+    plt.figure(figsize=(19, 6))
 
     for level_data in level_data_per_day:
         # 시간을 기준으로 데이터 정렬
@@ -44,7 +44,6 @@ def data_load(data_dir):
         level_data = level_data[['Site Name', 'Local(yyyy/MM/dd HH:mm:ss)', 'Sample Value']]
         level_data.columns = ['site_name', 'local_time', 'sample_value']
         
-        # local_time을 날짜(local_day)와 시간(local_time)으로 나누기
         level_data['local_day'] = pd.to_datetime(level_data['local_time']).dt.date
         level_data['hour'] = pd.to_datetime(level_data['local_time']).dt.hour
         level_data['minute'] = pd.to_datetime(level_data['local_time']).dt.minute
@@ -66,19 +65,31 @@ def statistics_per_day(level_datas):
 
 def statistics_all_data_per_hour(level_datas):
   grouped_stats = level_datas.groupby('hour_minute')['sample_value'].agg(['min', 'max', 'mean', 'median'])
-  print("Hourly Statistics Across All Dates:")
+  print("Statistics Across All Dates:")
   print(grouped_stats)
   grouped_stats.to_csv('./result/statistics_all_day.csv',index=True)
 
 def boxplot_all_data_per_hour(level_datas):
-  plt.figure(figsize=(12, 8))
-  level_datas.boxplot(column='sample_value', by='hour_minute', grid=True)
-  plt.xlabel('Hour of Day')
-  plt.ylabel('Sample Value')
-  plt.title('Box Plot of Sample Value by Hour of Day')
-  plt.suptitle('')
-  plt.show()
-
+    plt.figure(figsize=(19, 8))
+    
+    # Boxplot 그리기
+    boxplot = level_datas.boxplot(column='sample_value', by='hour_minute', grid=True)
+    
+    # x축 라벨을 모든 hour_minute 값으로 설정
+    boxplot.set_xticklabels(level_datas['hour_minute'].unique(), rotation=90)
+    
+    # 모든 x축 라벨을 가져옴
+    x_labels = boxplot.get_xticklabels()
+    
+    # x축 라벨 중 :08로 끝나는 것만 표시하도록 설정
+    new_labels = [label.get_text() if label.get_text().endswith(':08') else '' for label in x_labels]
+    boxplot.set_xticklabels(new_labels)
+    
+    plt.xlabel('h/m of Day')
+    plt.ylabel('Sample Value')
+    plt.title('Box Plot of Sample Value by h/m of Day')
+    plt.suptitle('')
+    plt.show()
 def concat_level_data(level_datas):
   return pd.concat(level_datas, ignore_index=True)
 
@@ -100,6 +111,8 @@ def find_outliers(level_datas):
     outliers = pd.concat([outliers, hour_outliers])
     outliers.to_csv('./result/outliers.csv',index=False)
   return outliers
+
+
 
 # 데이터 로드
 data_dir = './data/'
