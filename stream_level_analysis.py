@@ -5,23 +5,25 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 def level_plot(level_data):
-    print(level_data.head())
+    # 'hour_minute'를 datetime 형식으로 변환
+    level_data['hour_minute'] = pd.to_datetime(level_data['hour_minute'], format='%H:%M')
+    
     level_data_per_day = []
     unique_dates = level_data['local_day'].unique()
     for date in unique_dates:
-      # 각 날짜별 데이터 추출
-      date_data = level_data[level_data['local_day'] == date].copy()
-      # 리스트에 추가
-      level_data_per_day.append(date_data)
+        # 각 날짜별 데이터 추출
+        date_data = level_data[level_data['local_day'] == date].copy()
+        # 리스트에 추가
+        level_data_per_day.append(date_data)
 
-    plt.figure(figsize=(19, 6))
+    plt.figure(figsize=(30, 15))
 
-    for level_data in level_data_per_day:
+    for date_data in level_data_per_day:
         # 시간을 기준으로 데이터 정렬
-        level_data.sort_values(by='local_time', inplace=True)
+        date_data.sort_values(by='hour_minute', inplace=True)
         
         # 각 데이터를 시간 순서로 그래프에 추가
-        plt.plot(level_data['local_time'], level_data['sample_value'], marker='o', linestyle='-', label=level_data['local_day'].iloc[0], markersize=2)
+        plt.plot(date_data['hour_minute'], date_data['sample_value'], marker='o', linestyle='-', label=date_data['local_day'].iloc[0], markersize=2)
 
     plt.xlabel('Time of Day (Hour:Minute)')
     plt.ylabel('Sample Value')
@@ -30,10 +32,13 @@ def level_plot(level_data):
     plt.grid(True)
 
     # x축 눈금 설정: 10분 간격으로 설정
-    plt.xticks([time for time in level_data['local_time'] if time.endswith(':08')])
+    plt.xticks(level_data['hour_minute'][::10], rotation=45)
+    plt.gca().xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M'))
 
     plt.tight_layout()
     plt.show()
+
+
 
 def data_load(data_dir):
     file_paths =  [os.path.join(data_dir, file) for file in os.listdir(data_dir) if file.endswith('.csv')]
